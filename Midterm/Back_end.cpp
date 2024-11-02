@@ -150,31 +150,27 @@ int main() {
     int deposit;
     int choice;
     mkfifo(fifopath, 0666);
-
-
-    int fd = open(fifopath, O_RDONLY);
-        if (fd == -1) {
-            perror("open");
-            return 1;
-        }
-    char buf[1024];
-    ssize_t bytes_read = read(fd, buf, sizeof(buf));
-    if (bytes_read == -1) {
-        perror("read");
+    if (mkfifo(fifopath, 0666) == -1) {
+        perror("mkfifo");
         return 1;
     }
-
+    char buf[1024];
+    int bytesRead = 0;
     std::string data_str(buf, bytes_read);
 
 
     while (true) {
-        std::cout << "Please select an option" << std::endl;
-        std::cout << "\t1. Add data" << std::endl;
-        std::cout << "\t2. Remove data" << std::endl;
-        std::cout << "\t3. Search data" << std::endl;
-        std::cout << "\t4. Display all data" << std::endl;
-        std::cout << "\t5. Exit" << std::endl;
-        std::cin >> choice;
+        int fd = open(fifopath, O_RDONLY);
+            if (fd == -1) {
+                perror("open");
+                return 1;
+            }
+        ssize_t bytes_read = read(fd, buf, sizeof(buf));
+        if (bytes_read == -1) {
+            perror("read");
+            return 1;
+        }
+
         while (std::cin.fail()) {
             std::cin.clear(); // clear the error state
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // discard invalid input
@@ -208,29 +204,26 @@ int main() {
                 }
                 data.insert_data(id, name, deposit);
                 data.save_data();
-                continue;
+                break;
             case 2:
                 std::cout << "Enter ID: ";
                 std::cin >> id;
                 data.remove_data(id);
                 data.save_data();  
-                continue;
+                break;
             case 3:
                 std::cout << "Enter ID: ";
                 std::cin >> id;
                 data.search_data(id);
-                continue;
+                break;
             case 4:
                 data.display_data();
-                continue;
-            case 5:
-                std::cout << "Exiting..." << std::endl;
-                close(fd);
-                unlink(fifopath);
-                return 0;
+                break;
             default:
                 std::cout << "Please enter a integer between 1 to 5." << std::endl;
                 continue;
         }
     }
+    close(fd);
+    return 0;
 }
