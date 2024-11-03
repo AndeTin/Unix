@@ -3,76 +3,88 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <fstream>
 
 const char* fifopath = "./my_fifo";
 
 int main() {
-    std::string id, name;
-    int deposit;
-    int choice;
     mkfifo(fifopath, 0666);
-    if (mkfifo(fifoPath, 0666) == -1) {
-        perror("mkfifo");
-        return 1;
-    }
-    int fd = open(fifopath, O_WRONLY);
+
+    int fd = open(fifopath, O_RDWR);
     if (fd == -1) {
         perror("open");
         return 1;
     }
-    
-    while(true){
-        printf("Please select an option:\n
-            \t1. Add a new account\n
-            \t2. Remove an account\n
-            \t3. Search for an account\n
-            \t4. Display all accounts\n
-            \t5. Exit\n");
-        std::cin >> choice;
-        while (std::cin.fail()) {
+
+    std::string id, name;
+    int deposit;
+    int choice;
+    char buf[1024];
+
+    while (true) {
+        printf("Server is running\n");
+
+        while (std::cin.fail() || choice < 1 || choice > 4) {
             std::cin.clear();
             std::cin.ignore(256, '\n');
-            std::cout << "Invalid input. Please enter a number between 1 to 5: ";
+            std::cout << "Invalid input. Please enter a number between 1 and 4: ";
             std::cin >> choice;
         }
+
+        std::string message;
         switch (choice) {
             case 1:
-                std::cout << "Enter the account ID: ";
+                std::cout << "Enter ID: ";
                 std::cin >> id;
-                std::cout << "Enter the account name: ";
+                std::cout << "Enter Name: ";
                 std::cin >> name;
-                std::cout << "Enter the initial deposit: ";
+                std::cout << "Enter Deposit: ";
                 std::cin >> deposit;
-                while (std::cin.fail()) {
-                    std::cin.clear();
-                    std::cin.ignore(256, '\n');
-                    std::cout << "Invalid input. Please enter a number: ";
-                    std::cin >> deposit;
-                }
-                std::string data = choice + " " + id + " " + name + " " + std::to_string(deposit);
-                write(fd, data.c_str(), data.size());
+                message = "1 " + id + " " + name + " " + std::to_string(deposit);
+                write(fd, message.c_str(), message.size());
                 break;
             case 2:
-                std::cout << "Enter the account ID to remove: ";
+                std::cout << "Enter ID: ";
                 std::cin >> id;
-                std::string data = choice + " " + id;
-                write(fd, data.c_str(), data.size());
+                message = "2 " + id;
+                write(fd, message.c_str(), message.size());
+                ssize_t bytes_read = read(fd, buf, sizeof(buf) - 1);
+                if (bytes_read > 0) {
+                    buf[bytes_read] = '\0';
+                    std::cout << buf;
+                }
+
                 break;
             case 3:
-                std::cout << "Enter the account ID to search: ";
+                std::cout << "Enter ID: ";
                 std::cin >> id;
-                std::string data = choice + " " + id;
-                write(fd, data.c_str(), data.size());
+                message = "3 " + id;
+                write(fd, message.c_str(), message.size());
+                ssize_t bytes_read = read(fd, buf, sizeof(buf) - 1);
+                if (bytes_read > 0) {
+                    buf[bytes_read] = '\0';
+                    std::cout << buf;
+                }
                 break;
             case 4:
-                std::string data = choice;
-                write(fd, data.c_str(), data.size());
+                message = "4";
+                write(fd, message.c_str(), message.size());
+                ssize_t bytes_read = read(fd, buf, sizeof(buf) - 1);
+                if (bytes_read > 0) {
+                    buf[bytes_read] = '\0';
+                    std::cout << buf;
+                }
                 break;
-            case 5:
-                close(fd);
-                return 0;
+        }
+        // Write the request to back_end
+        write(fd, data.c_str(), data.size());
+
+        // Read the response from back_end
+        ssize_t bytes_read = read(fd, buf, sizeof(buf) - 1);
+        if (bytes_read > 0) {
+            buf[bytes_read] = '\0';
+            std::cout << buf;
         }
     }
+
     return 0;
 }
