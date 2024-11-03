@@ -17,6 +17,7 @@ struct Account {
     std::string name;
     int deposit;
 
+    // Comparison operator for sorting by integer ID in increasing order
     bool operator<(const Account& other) const {
         return id < other.id;
     }
@@ -24,6 +25,7 @@ struct Account {
 
 std::list<Account> account_list;
 
+// Load accounts from data.db file for auto-recovery
 void load_data() {
     std::ifstream file(db_path);
     if (!file.is_open()) {
@@ -37,9 +39,11 @@ void load_data() {
         account_list.push_back({id, name, deposit});
     }
     file.close();
+    // Sort the list in increasing order of ID after loading
     account_list.sort();
 }
 
+// Save accounts to data.db file for auto-recovery
 void save_data() {
     std::ofstream file(db_path, std::ios::trunc);
     if (!file.is_open()) {
@@ -60,7 +64,11 @@ std::string add_account(const std::string& id, const std::string& name, int depo
         }
     }
     account_list.insert(
-        std::upper_bound(account_list.begin(), account_list.end(), Account{id, name, deposit}),
+        std::upper_bound(account_list.begin(), account_list.end(), Account{id, name, deposit}, 
+            [](const Account& a, const Account& b) {
+                return std::stoi(a.id) < std::stoi(b.id);
+            }
+        ),
         {id, name, deposit}
     );
     save_data();
@@ -130,6 +138,7 @@ void process_request(const std::string& request) {
             printf("Showed all accounts\n");
             break;
         case 5: // Exit
+            response = "Server shutting down...\n";
             break;
         default:
             response = "Invalid command.\n";
