@@ -112,8 +112,6 @@ int main() {
                 break;
 
             case 5:
-                send_request(oss.str());
-                std::cout << "Exiting...\n";
                 return 0;
 
             default:
