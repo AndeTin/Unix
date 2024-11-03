@@ -1,208 +1,188 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <fcntl.h>
-#include <sys/stat.h>
 #include <unistd.h>
-#include <fstream>
+#include <sys/stat.h>
 #include <sstream>
+#include <list>
+#include <algorithm>
 
 const char* fifopath = "./my_fifo";
-const char* filepath = "./data.db";
+const char* db_path = "./data.db";
 
-class Data {
-private:
-    struct Node {
-        std::string id;
-        std::string name;
-        int deposit;
-        Node* next;
+struct Account {
+    std::string id;
+    std::string name;
+    int deposit;
 
-        Node(const std::string& id, const std::string& name, int deposit, Node* next = nullptr)
-            : id(id), name(name), deposit(deposit), next(next) {}
-    };
-
-    Node* head;
-    Node* tail;
-    int data_count;
-
-public:
-    bool rm = true;
-    Data() : head(nullptr), tail(nullptr), data_count(0) {}
-
-    ~Data() {
-        Node* current = head;
-        while (current) {
-            Node* next = current->next;
-            delete current;
-            current = next;
-        }
-    }
-
-    bool check_duplicate(const std::string& id) const {
-        for (Node* current = head; current; current = current->next) {
-            if (current->id == id) {
-                std::cout << "ID already exists" << std::endl;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    void insert_data(const std::string& id, const std::string& name, int deposit) {
-        if (check_duplicate(id)) {
-            std::cout << "ID already exists, cannot insert." << std::endl;
-            return;
-        }
-
-        Node* newNode = new Node(id, name, deposit, nullptr);
-
-        if (!head || id < head->id) {
-            newNode->next = head;
-            head = newNode;
-            if (!tail) tail = newNode;
-        } else {
-            Node* current = head;
-            Node* prev = nullptr;
-
-            while (current && id > current->id) {
-                prev = current;
-                current = current->next;
-            }
-
-            newNode->next = current;
-            prev->next = newNode;
-
-            if (!newNode->next) tail = newNode;
-        }
-
-        data_count++;
-    }
-
-    void remove_data(const std::string& id) {
-        Node* current = head;
-        Node* prev = nullptr;
-
-        while (current) {
-            if (current->id == id) {
-                if (prev) prev->next = current->next;
-                else head = current->next;
-
-                if (!current->next) tail = prev;
-
-                delete current;
-                data_count--;
-                rm = true;  // Successful removal
-                return;
-            }
-            prev = current;
-            current = current->next;
-        }
-        rm = false;  // Indicate removal failed (not found)
-    }
-
-    void save_data() const {
-        std::ofstream file(filepath);
-        if (file.is_open()) {
-            for (Node* current = head; current; current = current->next) {
-                file << current->id << " " << current->name << " " << current->deposit << std::endl;
-            }
-            if (file.fail()) {
-                std::cout << "Error writing data to file" << std::endl;
-            }
-            file.close();
-        } else {
-            std::cout << "Unable to open file" << std::endl;
-        }
-    }
-
-    std::string get_data(const std::string& id) const {
-        std::ostringstream oss;
-        for (Node* current = head; current; current = current->next) {
-            if (current->id == id) {
-                oss << "ID: " << current->id << "\n";
-                oss << "Name: " << current->name << "\n";
-                oss << "Deposit: " << current->deposit << "\n";
-                return oss.str();
-            }
-        }
-        return "Data not found\n";
-    }
-
-    std::string get_all_data() const {
-        std::ostringstream oss;
-        for (Node* current = head; current; current = current->next) {
-            oss << "ID: " << current->id << "\n";
-            oss << "Name: " << current->name << "\n";
-            oss << "Deposit: " << current->deposit << "\n";
-            oss << "----------------------------------" << "\n";
-        }
-        return oss.str();
+    // Comparator for sorting by ID
+    bool operator<(const Account& other) const {
+        return id < other.id;
     }
 };
 
-int main() {
-    mkfifo(fifopath, 0666);
+std::list<Account> account_list;
 
-    int fd = open(fifopath, O_RDWR);
-    if (fd == -1) {
-        perror("open");
-        return 1;
+// Load accounts from data.db file for auto-recovery
+void load_data() {
+    std::ifstream file(db_path);
+    if (!file.is_open()) {
+        std::cerr << "Could not open data.db for reading. Starting with empty data.\n";
+        return;
     }
 
-    Data data;
-    char buf[1024];
+    std::string id, name;
+    int deposit;
+    while (file >> id >> name >> deposit) {
+        account_list.push_back({id, name, deposit});
+    }
+    file.close();
+    // Ensure the list is sorted after loading
+    account_list.sort();
+}
 
-    while (true) {
-        ssize_t bytes_read = read(fd, buf, sizeof(buf) - 1);
-        if (bytes_read > 0) {
-            buf[bytes_read] = '\0';
+// Save accounts to data.db file for auto-recovery
+void save_data() {
+    std::ofstream file(db_path, std::ios::trunc);
+    if (!file.is_open()) {
+        std::cerr << "Could not open data.db for writing.\n";
+        return;
+    }
 
-            std::istringstream iss(buf);
-            int choice;
-            iss >> choice;
+    for (const auto& account : account_list) {
+        file << account.id << " " << account.name << " " << account.deposit << "\n";
+    }
+    file.close();
+}
 
-            std::string id, name;
-            int deposit;
-            std::string response;
-
-            switch (choice) {
-                case 1:
-                    iss >> id >> name >> deposit;
-                    data.insert_data(id, name, deposit);
-                    data.save_data();
-                    response = "Account added successfully\n";
-                    write(fd, response.c_str(), response.size());
-                    break;
-                case 2:
-                    iss >> id;
-                    data.remove_data(id);
-                    if (data.rm) {
-                        response = "Account removed successfully\n";
-                    } else {
-                        response = "Data not found\n";
-                    }
-                    data.save_data();
-                    write(fd, response.c_str(), response.size());
-                    break;
-                case 3:
-                    iss >> id;
-                    response = data.get_data(id);
-                    write(fd, response.c_str(), response.size());
-                    break;
-                case 4:
-                    response = data.get_all_data();
-                    write(fd, response.c_str(), response.size());
-                    break;
-                case 5:
-                    std::cout << "Exiting..." << std::endl;
-                    close(fd);
-                    unlink(fifopath);
-                    return 0;
-                default:
-                    response = "Invalid choice received\n";
-                    write(fd, response.c_str(), response.size());
-                    break;
-            }
+std::string add_account(const std::string& id, const std::string& name, int deposit) {
+    for (const auto& account : account_list) {
+        if (account.id == id) {
+            return "Account with this ID already exists.\n";
         }
     }
+    // Insert account in the sorted order
+    account_list.insert(
+        std::upper_bound(account_list.begin(), account_list.end(), Account{id, name, deposit}),
+        {id, name, deposit}
+    );
+    save_data();
+    return "Account added successfully.\n";
+}
+
+std::string remove_account(const std::string& id) {
+    for (auto it = account_list.begin(); it != account_list.end(); ++it) {
+        if (it->id == id) {
+            account_list.erase(it);
+            save_data();
+            return "Account removed successfully.\n";
+        }
+    }
+    return "Account not found.\n";
+}
+
+std::string query_account(const std::string& id) {
+    for (const auto& account : account_list) {
+        if (account.id == id) {
+            std::ostringstream oss;
+            oss << "ID: " << account.id << ", Name: " << account.name << ", Deposit: " << account.deposit << "\n";
+            return oss.str();
+        }
+    }
+    return "Account not found.\n";
+}
+
+std::string show_all_accounts() {
+    if (account_list.empty()) {
+        return "No accounts available.\n";
+    }
+    std::ostringstream oss;
+    for (const auto& account : account_list) {
+        oss << "ID: " << account.id << ", Name: " << account.name << ", Deposit: " << account.deposit << "\n";
+    }
+    return oss.str();
+}
+
+void process_request(const std::string& request, int client_fd) {
+    std::istringstream iss(request);
+    int command;
+    iss >> command;
+
+    std::string response;
+    std::string id, name;
+    int deposit;
+
+    switch (command) {
+        case 1: // Add Account
+            iss >> id >> name >> deposit;
+            response = add_account(id, name, deposit);
+            printf("Added account: %s %s %d\n", id.c_str(), name.c_str(), deposit);
+            break;
+        case 2: // Remove Account
+            iss >> id;
+            response = remove_account(id);
+            printf("Removed account: %s\n", id.c_str());
+            break;
+        case 3: // Query Account
+            iss >> id;
+            response = query_account(id);
+            printf("Queried account: %s\n", id.c_str());
+            break;
+        case 4: // Show All Accounts
+            response = show_all_accounts();
+            printf("Showed all accounts\n");
+            break;
+        case 5: // Exit
+            response = "Server shutting down...\n";
+            break;
+        default:
+            response = "Invalid command.\n";
+            break;
+    }
+
+    printf("Response: %s", response.c_str());
+    write(client_fd, response.c_str(), response.size());
+}
+
+int main() {
+    // Load saved accounts at startup
+    load_data();
+
+    // Create the FIFO if it does not exist
+    mkfifo(fifopath, 0666);
+
+    int server_fd;
+    char buffer[1024];
+
+    while (true) {
+        // Open FIFO for reading
+        server_fd = open(fifopath, O_RDONLY);
+        if (server_fd == -1) {
+            perror("open");
+            continue;
+        }
+
+        // Read request from the FIFO
+        ssize_t bytes_read = read(server_fd, buffer, sizeof(buffer) - 1);
+        if (bytes_read > 0) {
+            buffer[bytes_read] = '\0';
+            std::string request(buffer);
+
+            // Process the request and send a response
+            process_request(request, server_fd);
+
+            if (request == "5") { // Exit command
+                close(server_fd);
+                break;
+            }
+        } else if (bytes_read == -1) {
+            perror("read");
+        }
+
+        close(server_fd);
+    }
+
+    unlink(fifopath); // Remove FIFO
+    return 0;
 }
