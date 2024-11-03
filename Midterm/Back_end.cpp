@@ -8,7 +8,8 @@
 #include <list>
 #include <algorithm>
 
-const char* fifopath = "./my_fifo";
+const char* request_fifo = "./my_fifo";
+const char* response_fifo = "./response_fifo";
 const char* db_path = "./data.db";
 
 struct Account {
@@ -16,7 +17,6 @@ struct Account {
     std::string name;
     int deposit;
 
-    // Comparator for sorting by ID
     bool operator<(const Account& other) const {
         return id < other.id;
     }
@@ -24,7 +24,6 @@ struct Account {
 
 std::list<Account> account_list;
 
-// Load accounts from data.db file for auto-recovery
 void load_data() {
     std::ifstream file(db_path);
     if (!file.is_open()) {
@@ -38,11 +37,9 @@ void load_data() {
         account_list.push_back({id, name, deposit});
     }
     file.close();
-    // Ensure the list is sorted after loading
     account_list.sort();
 }
 
-// Save accounts to data.db file for auto-recovery
 void save_data() {
     std::ofstream file(db_path, std::ios::trunc);
     if (!file.is_open()) {
@@ -62,7 +59,6 @@ std::string add_account(const std::string& id, const std::string& name, int depo
             return "Account with this ID already exists.\n";
         }
     }
-    // Insert account in the sorted order
     account_list.insert(
         std::upper_bound(account_list.begin(), account_list.end(), Account{id, name, deposit}),
         {id, name, deposit}
@@ -104,7 +100,7 @@ std::string show_all_accounts() {
     return oss.str();
 }
 
-void process_request(const std::string& request, int client_fd) {
+void process_request(const std::string& request) {
     std::istringstream iss(request);
     int command;
     iss >> command;
@@ -117,21 +113,17 @@ void process_request(const std::string& request, int client_fd) {
         case 1: // Add Account
             iss >> id >> name >> deposit;
             response = add_account(id, name, deposit);
-            printf("Added account: %s %s %d\n", id.c_str(), name.c_str(), deposit);
             break;
         case 2: // Remove Account
             iss >> id;
             response = remove_account(id);
-            printf("Removed account: %s\n", id.c_str());
             break;
         case 3: // Query Account
             iss >> id;
             response = query_account(id);
-            printf("Queried account: %s\n", id.c_str());
             break;
         case 4: // Show All Accounts
             response = show_all_accounts();
-            printf("Showed all accounts\n");
             break;
         case 5: // Exit
             response = "Server shutting down...\n";
@@ -141,48 +133,50 @@ void process_request(const std::string& request, int client_fd) {
             break;
     }
 
-    printf("Response: %s", response.c_str());
-    write(client_fd, response.c_str(), response.size());
+    int response_fd = open(response_fifo, O_WRONLY);
+    if (response_fd != -1) {
+        write(response_fd, response.c_str(), response.size());
+        close(response_fd);
+    } else {
+        perror("open response_fifo");
+    }
 }
 
 int main() {
-    // Load saved accounts at startup
     load_data();
 
-    // Create the FIFO if it does not exist
-    mkfifo(fifopath, 0666);
+    mkfifo(request_fifo, 0666);
+    mkfifo(response_fifo, 0666);
 
     int server_fd;
     char buffer[1024];
 
     while (true) {
-        // Open FIFO for reading
-        server_fd = open(fifopath, O_RDONLY);
+        server_fd = open(request_fifo, O_RDONLY);
         if (server_fd == -1) {
-            perror("open");
+            perror("open request_fifo");
             continue;
         }
 
-        // Read request from the FIFO
         ssize_t bytes_read = read(server_fd, buffer, sizeof(buffer) - 1);
         if (bytes_read > 0) {
             buffer[bytes_read] = '\0';
             std::string request(buffer);
 
-            // Process the request and send a response
-            process_request(request, server_fd);
+            process_request(request);
 
             if (request == "5") { // Exit command
                 close(server_fd);
                 break;
             }
         } else if (bytes_read == -1) {
-            perror("read");
+            perror("read request_fifo");
         }
 
         close(server_fd);
     }
 
-    unlink(fifopath); // Remove FIFO
+    unlink(request_fifo);
+    unlink(response_fifo);
     return 0;
 }
