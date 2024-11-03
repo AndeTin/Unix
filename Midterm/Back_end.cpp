@@ -113,20 +113,23 @@ void process_request(const std::string& request) {
         case 1: // Add Account
             iss >> id >> name >> deposit;
             response = add_account(id, name, deposit);
+            printf("Added account: %s %s %d\n", id.c_str(), name.c_str(), deposit);
             break;
         case 2: // Remove Account
             iss >> id;
             response = remove_account(id);
+            printf("Removed account: %s\n", id.c_str());
             break;
         case 3: // Query Account
             iss >> id;
             response = query_account(id);
+            printf("Queried account: %s\n", id.c_str());
             break;
         case 4: // Show All Accounts
             response = show_all_accounts();
+            printf("Showed all accounts\n");
             break;
         case 5: // Exit
-            response = "Server shutting down...\n";
             break;
         default:
             response = "Invalid command.\n";
@@ -134,6 +137,7 @@ void process_request(const std::string& request) {
     }
 
     int response_fd = open(response_fifo, O_WRONLY);
+    printf("Sending response: %s\n", response.c_str());
     if (response_fd != -1) {
         write(response_fd, response.c_str(), response.size());
         close(response_fd);

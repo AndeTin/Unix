@@ -53,6 +53,7 @@ int main() {
     while (true) {
         show_menu();
         std::cin >> choice;
+        printf("\n");
 
         std::ostringstream oss;
         oss << choice << " ";
@@ -68,9 +69,16 @@ int main() {
                 std::cin >> name;
                 std::cout << "Enter Deposit: ";
                 std::cin >> deposit;
+                while (std::cin.fail()) {
+                    std::cin.clear();
+                    std::cin.ignore(256, '\n');
+                    std::cout << "Invalid input. Please enter a number: ";
+                    std::cin >> deposit;
+                }
                 oss << id << " " << name << " " << deposit;
                 send_request(oss.str());
                 std::cout << receive_response();
+                printf("\n\n");
                 break;
 
             case 2:
@@ -79,6 +87,7 @@ int main() {
                 oss << id;
                 send_request(oss.str());
                 std::cout << receive_response();
+                printf("\n\n");
                 break;
 
             case 3:
@@ -87,11 +96,13 @@ int main() {
                 oss << id;
                 send_request(oss.str());
                 std::cout << receive_response();
+                printf("\n\n");
                 break;
 
             case 4:
                 send_request(oss.str());
                 std::cout << receive_response();
+                printf("\n\n");
                 break;
 
             case 5:
