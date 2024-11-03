@@ -65,6 +65,12 @@ int main() {
             case 1:
                 std::cout << "Enter ID: ";
                 std::cin >> id;
+                while (std::cin.fail() || id.find_first_not_of("0123456789") != std::string::npos) {
+                    std::cin.clear();
+                    std::cin.ignore(256, '\n');
+                    std::cout << "Invalid input. Please enter a valid integer ID: ";
+                    std::cin >> id;
+                }
                 std::cout << "Enter Name: ";
                 std::cin >> name;
                 std::cout << "Enter Deposit: ";
