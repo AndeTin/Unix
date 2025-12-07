@@ -1,0 +1,50 @@
+BEGINNER MANUAL: FILE SYNC PROGRAM
+
+STEP 1: PREPARE THE ENVIRONMENT
+
+    Ensure you have sshpass installed if you plan to use password-based authentication. You can install it using: sudo apt-get install sshpass
+    
+    // sudo apt-get install sshpass
+    
+    Identify the directories and remote server you want to synchronize:
+        Local directory: The directory on your machine to monitor for changes.
+        Backup directory: A local directory where backups will be stored.
+        Remote directory: A directory on the remote server where files will be synced.
+
+STEP 2: RUN THE PROGRAM
+
+    Open your terminal.
+    Run the program with the following command: ./file_sync <local_directory> <remote_user> <remote_ip> <remote_directory> Replace:
+        <local_directory> with the path to your local directory.
+        <remote_user> with your username on the remote server.
+        <remote_ip> with the IP address or hostname of the remote server.
+    	<remote_directory> with the path to the remote directory.
+
+    ex: ./file_sync source/ jesse 192.168.19.23 /home/jesse/Desktop/file_sync_project/remote
+
+STEP 3: CHOOSE THE AUTHENTICATION METHOD
+    Enter 1 to use password-based authentication.
+    Enter 2 to use SSH key-based authentication (default).
+    
+    If you choose password-based authentication, you will also be asked to:
+        Enter your password for the remote server.
+        Specify a custom port if needed. Press Enter to use the default port 22.
+
+STEP 4: MONITOR AND SYNC
+    
+    When a file is created, modified, or deleted in the local directory:
+        The changes will be synced to the backup directory.
+        The changes will also be synced to the remote directory.
+    If no changes are detected for 10 seconds, the program will:
+        Sync the remote directory back to the local directory.
+        Sync the remote directory back to the backup directory.
+
+STEP 5: EXIT THE PROGRAM
+
+    To stop the program, press CTRL+C in the terminal.
+
+NOTES: Ensure you have the necessary permissions to access the directories and the remote server.
+    Make sure the backup and remote directories exist before running the program. If not, the program will attempt to create them automatically.
+    Test the sync operations with a few files to ensure everything is working correctly.
+
+That’s it! The program will handle synchronization automatically, so you can focus on your work.
